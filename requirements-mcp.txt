@@ -1,0 +1,2 @@
+# Official MCP Python SDK, separate from model runtimes.
+mcp==1.26.0

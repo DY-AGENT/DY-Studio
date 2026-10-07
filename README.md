@@ -24,7 +24,13 @@ Required text encoders interpret prompts without running as chatbots or writing 
 4. Open `http://127.0.0.1:8768/`. In **Model management**, install the tools you want.
 5. Submit a prompt or upload an image. Open **Results** to preview and download completed files.
 
-The UI/server starts with Python's standard library. Model installation creates local environments and downloads dependencies and weights; existing global Python packages are not modified. No API key or external generation account is required. An EXE installer and MCP server are not included in this version.
+The UI/server starts with Python's standard library. Model installation creates local environments and downloads dependencies and weights; existing global Python packages are not modified. No API key or external generation account is required. An EXE installer is not included in this version.
+
+## Connect another AI through MCP
+
+DY Studio includes a local **stdio MCP server** for model status, installation, image upload, generation, job progress/cancellation, logs and completed assets. It shares the app's single job queue.
+
+Run `INSTALL_MCP.bat` once, then configure your MCP client to launch `.mcp-venv/Scripts/python.exe` with the absolute path to `mcp_server.py` and `--start-studio`. See **[MCP.md](MCP.md)** for Codex and other desktop-client examples, tool parameters and troubleshooting. MCP setup installs only the bridge dependencies; models are installed separately. No API key is needed for DY Studio itself.
 
 ## Hardware and the 8GB target
 

@@ -16,6 +16,10 @@ ACE-Step's model card expressly permits commercial use of generated music. OpenR
 
 Required internal encoders: [Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) and [DINO](https://huggingface.co/facebook/dino-vitb16) are Apache-2.0 models. Qwen is used for music description embeddings, without text generation.
 
+## MCP bridge
+
+The optional bridge installs the official [MCP Python SDK v1.26.0](https://github.com/modelcontextprotocol/python-sdk/tree/v1.26.0), licensed under [MIT](https://github.com/modelcontextprotocol/python-sdk/blob/v1.26.0/LICENSE). Its original notice is included in `licenses/mcp-sdk-MIT.txt`. The SDK and its dependencies are installed into `.mcp-venv/` and retain their own license notices; they are not bundled into this source repository.
+
 ## Pinned versions and memory evidence
 
 TripoSR code: `107cefdc244c39106fa830359024f6a2f1c78871`.

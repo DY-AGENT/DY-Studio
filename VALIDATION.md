@@ -26,6 +26,14 @@ The installed development environment passed 14 automated checks covering real s
 
 The clean source distribution passed 13 checks and skipped the mesh integration check because the upstream 3D engine was not installed there. GPU generation and these automated checks are separate evidence.
 
+## MCP checks (2026-10-08)
+
+With `requirements-mcp.txt` installed in a separate environment, the source distribution passed 16 automated checks and skipped the mesh integration check. A real official-SDK stdio client initialized the MCP server and discovered all 10 tools. HTTP integration fixtures verified upload, all five generation request types through the shared queue, installation submission, cancellation, status, job lists, logs and byte-for-byte result reads. Invalid parameters, foreign workspace identity and unrecorded/path-traversing result reads were rejected.
+
+A cold-start test launched Studio through MCP without downloading models and connected two clients to the same app instance. Some clients terminate child processes on disconnect; the connection guide explains how to launch Studio independently for ongoing jobs. An intermittent Windows connection reset on rejected small HTTP requests was reproduced and corrected by bounded body draining before returning the rejection.
+
+These MCP checks use isolated fixtures and do not demonstrate new GPU generation, installation downloads or compatibility with every AI desktop client. The GPU measurements above remain the earlier direct-app tests.
+
 ## Video correction
 
 The first FP16 run saved a decodable MP4 but produced nearly blank frames and failed visual validation. The implementation was changed to BF16 with memory release before decoding, then retested using the same prompt and seed. The table reports the corrected run.

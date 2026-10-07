@@ -1,6 +1,7 @@
 # Local models, environments, inputs, generated media and private job logs
 data/
 .venv/
+.mcp-venv/
 venv/
 __pycache__/
 *.py[cod]

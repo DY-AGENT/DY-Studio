@@ -217,7 +217,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/state':
                 with LOCK:
                     jobs = sorted(JOBS.values(), key=lambda j: j['created'], reverse=True)
-                    self.send(dict(token=TOKEN, models=[dict(m, installed=installed(m['id'])) for m in CATALOG],
+                    self.send(dict(token=TOKEN, studio_root=str(ROOT), models=[dict(m, installed=installed(m['id'])) for m in CATALOG],
                                    jobs=jobs, hardware=hardware()))
             elif path.startswith('/results/'):
                 self.file(safe_path(DATA / 'results', path[len('/results/'):]))
@@ -232,6 +232,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.valid_host() or self.headers.get('X-Studio-Token') != TOKEN:
+            # Drain only small, already-submitted bodies before closing. Otherwise
+            # Windows may reset the TCP connection before the JSON error arrives.
+            try:
+                size = int(self.headers.get('Content-Length', '0'))
+                if 0 < size <= 65536:
+                    self.connection.settimeout(1)
+                    self.rfile.read(size)
+            except (ValueError, OSError):
+                pass
             self.send(dict(error='Refresh this page and try again.'), 403)
             return
         try:
