@@ -37,7 +37,7 @@ class InputTests(unittest.TestCase):
 
     def test_uninstalled_generation_is_rejected(self):
         with patch.object(server, 'installed', return_value=False):
-            with self.assertRaisesRegex(ValueError, '설치'):
+            with self.assertRaisesRegex(ValueError, 'Install'):
                 server.validate(dict(kind='image', prompt='a flower'))
 
     def test_path_traversal_is_rejected(self):

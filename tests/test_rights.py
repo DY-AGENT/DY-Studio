@@ -16,7 +16,7 @@ class RightsTests(unittest.TestCase):
             replacement = dict(common.MODELS['image'], **change)
             with patch.dict(common.MODELS, image=replacement):
                 for action in ('install', 'generate'):
-                    with self.subTest(action=action, change=change), self.assertRaisesRegex(ValueError, '상업 이용'):
+                    with self.subTest(action=action, change=change), self.assertRaisesRegex(ValueError, 'Commercial use'):
                         server.validate(dict(kind='image', action=action, prompt='a flower'))
 
     def test_rights_records_actual_download_and_keeps_media_unchanged(self):
@@ -34,7 +34,7 @@ class RightsTests(unittest.TestCase):
             rights = json.loads((destination / 'rights.json').read_text(encoding='utf-8'))
             self.assertEqual(rights['download']['revision'], 'measured-revision')
             self.assertEqual(media.read_bytes(), b'existing-media')
-            self.assertIn('보증하지 않습니다', rights['notice'])
+            self.assertIn('does not guarantee', rights['notice'])
             self.assertIn('OpenRAIL', (destination / 'commercial-use.txt').read_text(encoding='utf-8'))
 
 
