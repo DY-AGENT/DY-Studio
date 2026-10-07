@@ -1,0 +1,12 @@
+# Local models, environments, inputs, generated media and private job logs
+data/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.env.*
+*.log
+work/
+outputs/
