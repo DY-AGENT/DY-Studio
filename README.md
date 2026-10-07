@@ -46,6 +46,10 @@ The selected models permit commercial use subject to their terms. Stable Diffusi
 
 Model repositories and reviewed revisions are pinned. Unreviewed replacements are rejected before installation or generation. Model weights and personal job records are not distributed in this repository.
 
+## Generated content disclaimer
+
+DY Studio is provided "as is", without warranties. You are solely responsible for the content you generate and how you use, publish or distribute it, including compliance with applicable laws, model licenses and third-party rights. To the fullest extent permitted by applicable law, DY Studio's developers and contributors accept no liability for generated content or any claims, losses or damages arising from its creation or use.
+
 ## Local storage and privacy
 
 Runtime data stays under `data/`, excluded by `.gitignore`:
