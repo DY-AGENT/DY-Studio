@@ -48,7 +48,7 @@ def safe_path(base, value):
     base = Path(base).resolve()
     path = (base / value).resolve()
     if not path.is_relative_to(base):
-        raise ValueError('허용되지 않은 파일 경로입니다.')
+        raise ValueError('This file path is not allowed.')
     return path
 
 def commercial_model(kind):
@@ -56,24 +56,24 @@ def commercial_model(kind):
     if (model.get('repo') != REVIEWED_REPOS.get(kind)
             or model.get('revision') != REVIEWED_REVISIONS.get(kind)
             or model.get('commercial_allowed') is not True):
-        raise ValueError('상업 이용 조건이 확인되지 않은 모델입니다. 공식 라이선스를 확인한 모델만 실행합니다.')
+        raise ValueError('Commercial use terms have not been verified for this model. Only reviewed models can run.')
     return model
 
 def write_rights(destination, job):
     model = commercial_model(job['kind'])
     manifest = DATA / 'models' / job['kind'] / 'download.json'
     download = json.loads(manifest.read_text(encoding='utf-8')) if manifest.exists() else {}
-    note = ('선택한 모델의 라이선스는 조건을 지키는 상업 이용을 허용합니다. '
-            '입력 이미지·가사·참조 자료와 결과에 포함된 타인의 권리는 별도로 확인해야 합니다. '
-            '이 안내는 생성물의 독점 저작권, 비침해 또는 저작권 등록 가능성을 보증하지 않습니다. '
-            '모델·코드 재배포 조건과 생성 파일의 이용 조건은 구분됩니다.')
+    note = ('The selected model license permits commercial use subject to its terms. '
+            'Rights to input images, lyrics, reference material and third-party content in outputs must be checked separately. '
+            'This notice does not guarantee exclusive copyright, non-infringement or eligibility for copyright registration. '
+            'Model and code redistribution terms are distinct from the terms for using generated files.')
     rights = dict(model=model['model'], repository=model['repo'], download=download,
                   license=model['license'], source=model['source'], license_source=model['license_source'],
                   commercial_use='permitted_subject_to_original_terms', conditions=model['commercial_note'],
                   notice=note, reviewed_on='2026-10-07', job_id=job['id'])
     save_json(destination / 'rights.json', rights)
     (destination / 'commercial-use.txt').write_text(
-        '생성물 상업 이용 안내\n\n모델: ' + model['model'] + '\n라이선스: ' + model['license'] +
-        '\n공식 조건: ' + model['license_source'] + '\n\n' + model['commercial_note'] + '\n\n' + note +
-        '\n\n이 파일은 출처 확인을 위한 안내입니다. 모델 라이선스를 생성물에 새로 부여하는 문서가 아닙니다.\n',
+        'Commercial use notice for generated assets\n\nModel: ' + model['model'] + '\nLicense: ' + model['license'] +
+        '\nOfficial terms: ' + model['license_source'] + '\n\n' + model['commercial_note'] + '\n\n' + note +
+        '\n\nThis file records provenance. It does not apply a new model license to the generated asset.\n',
         encoding='utf-8')

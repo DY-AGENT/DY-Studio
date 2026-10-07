@@ -34,8 +34,8 @@ def ensure_runtime(kind):
                 pass
         base_python = next((str(x) for x in candidates if x.is_file()), None)
         if base_python is None:
-            raise RuntimeError('음악 엔진에는 Python 3.11 또는 3.12가 필요합니다. 설치 후 다시 시도하세요.')
-    event('전용 실행 환경을 만드는 중 · 기존 Python 패키지는 변경하지 않습니다.', 3)
+            raise RuntimeError('The music engine requires Python 3.11 or 3.12. Install it and try again.')
+    event('Creating an isolated runtime · existing Python packages are preserved.', 3)
     args = [base_python, '-m', 'venv']
     if kind != 'music':
         args.append('--system-site-packages')
@@ -47,7 +47,7 @@ def install(job):
     kind = job['kind']
     exe = ensure_runtime(kind)
     pip = [exe, '-m', 'pip', 'install', '--disable-pip-version-check']
-    event('실행 라이브러리를 설치하는 중 · 다운로드 로그를 확인할 수 있습니다.', 8)
+    event('Installing runtime libraries · see the download log for details.', 8)
     if kind != 'cutout':
         result = subprocess.run([str(exe), '-c', 'import torch; assert torch.cuda.is_available()'],
                                 env=environment(), capture_output=True)
@@ -76,13 +76,13 @@ def install(job):
         if not (source / '.git').exists():
             run(['git', 'clone', repo, source])
         run(['git', '-C', source, 'checkout', '--detach', revision])
-    event('모델 파일 다운로드 중 · 첫 설치는 시간이 걸립니다. 취소 후 이어받기가 가능합니다.', 25)
+    event('Downloading model files · the first install takes time; downloads can resume after cancellation.', 25)
     # Run downloads with the same interpreter that will run inference.
     run([exe, str(ROOT / 'install.py'), job['id'], '--weights'])
-    event('라이브러리와 모델 파일 확인 중', 95)
+    event('Checking libraries and model files', 95)
     run([exe, str(ROOT / 'worker.py'), job['id'], '--probe'])
     save_json(DATA / 'models' / kind / 'ready.json', dict(model=MODELS[kind]['model'], installed=time.time()))
-    event('설치 완료 · 이제 생성할 수 있습니다.', 100)
+    event('Installation complete · ready to generate.', 100)
 
 def weights(kind):
     from huggingface_hub import snapshot_download, hf_hub_download, HfApi
@@ -125,6 +125,6 @@ if __name__ == '__main__':
         else:
             install(job)
     except Exception as exc:
-        event('설치 실패: ' + str(exc))
+        event('Installation failed: ' + str(exc))
         traceback.print_exc()
         sys.exit(1)

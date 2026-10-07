@@ -2,7 +2,7 @@
 
 <img src="web/assets/logo.png" alt="DY AGENT" width="160">
 
-A local AI creative workspace for Windows: generate images, music, short videos and 3D assets, or remove image backgrounds. DY Studio has a Korean interface, runs one job at a time, and uses no conversational or lyric-writing LLM.
+A local AI creative workspace for Windows: generate images, music, short videos and 3D assets, or remove image backgrounds. DY Studio has an English interface, runs one job at a time, and uses no conversational or lyric-writing LLM.
 
 ## Creative tools
 
@@ -21,8 +21,8 @@ Required text encoders interpret prompts without running as chatbots or writing 
 1. Install Python 3.11 or later, Git, and a current NVIDIA driver. Music requires Python 3.11 or 3.12, discoverable through the Windows Python launcher.
 2. Download this repository as a ZIP and extract it, or clone it.
 3. Double-click `START.bat`, or run `python server.py` from the repository root.
-4. Open `http://127.0.0.1:8768/`. In **모델 관리** (Model management), install the tools you want.
-5. Submit a prompt or upload an image. Open **결과 보관함** (Results) to preview and download completed files.
+4. Open `http://127.0.0.1:8768/`. In **Model management**, install the tools you want.
+5. Submit a prompt or upload an image. Open **Results** to preview and download completed files.
 
 The UI/server starts with Python's standard library. Model installation creates local environments and downloads dependencies and weights; existing global Python packages are not modified. No API key or external generation account is required. An EXE installer and MCP server are not included in this version.
 

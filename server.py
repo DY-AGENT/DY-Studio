@@ -59,7 +59,7 @@ def validate(payload):
     kind = payload.get('kind')
     action = payload.get('action', 'generate')
     if kind not in MODELS or action not in ('generate', 'install'):
-        raise ValueError('지원하지 않는 작업입니다.')
+        raise ValueError('This operation is not supported.')
     commercial_model(kind)
     if action == 'install':
         # Resume/reinstall reuses downloaded weights instead of reserving them twice.
@@ -67,30 +67,30 @@ def validate(payload):
         existing_gb = sum(p.stat().st_size for p in folder.rglob('*') if p.is_file()) / 1024**3
         needed_gb = max(0, MODELS[kind]['disk_gb'] - existing_gb) + 3
         if shutil.disk_usage(DATA).free / 1024**3 < needed_gb:
-            raise ValueError('디스크 공간이 부족합니다. 모델 크기와 여유 공간을 확인하세요.')
+            raise ValueError('Not enough disk space. Check the model size and available space.')
         return dict(kind=kind, action=action)
     if not installed(kind):
-        raise ValueError('먼저 이 모델을 설치하세요. 모델 관리에서 설치할 수 있습니다.')
+        raise ValueError('Install this model first in Model management.')
     prompt = str(payload.get('prompt', '')).strip()
     if not MODELS[kind]['input'] and not (1 <= len(prompt) <= (512 if kind == 'music' else 1500)):
-        raise ValueError('설명을 입력하세요. 음악은 512자, 이미지·영상은 1500자까지 입력할 수 있습니다.')
+        raise ValueError('Enter a prompt: up to 512 characters for music or 1500 for images and video.')
     upload = payload.get('upload', '')
     if MODELS[kind]['input']:
         path = safe_path(DATA / 'uploads', upload)
         if not upload or not path.is_file():
-            raise ValueError('먼저 물체 이미지를 업로드하세요.')
+            raise ValueError('Upload an object image first.')
     seed = int(payload.get('seed', -1))
     if not (-1 <= seed < 2**32):
-        raise ValueError('시드는 -1 또는 0~4294967295여야 합니다.')
+        raise ValueError('The seed must be -1 or an integer from 0 to 4294967295.')
     size = int(payload.get('size', 512))
     if size not in (384, 512, 640):
-        raise ValueError('지원하지 않는 해상도입니다.')
+        raise ValueError('This resolution is not supported.')
     duration = int(payload.get('duration', 30))
     if duration not in (10, 20, 30, 60):
-        raise ValueError('지원하지 않는 음악 길이입니다.')
+        raise ValueError('This music duration is not supported.')
     lyrics = str(payload.get('lyrics', ''))
     if len(lyrics) > 4096:
-        raise ValueError('가사는 4096자까지 입력할 수 있습니다.')
+        raise ValueError('Lyrics can contain up to 4096 characters.')
     return dict(action=action, kind=kind, prompt=prompt, upload=upload, seed=seed, size=size,
                 duration=duration, lyrics=lyrics, negative=str(payload.get('negative', ''))[:1500],
                 instrumental=bool(payload.get('instrumental', True)))
@@ -99,12 +99,12 @@ def create_job(payload):
     values = validate(payload)
     with LOCK:
         if sum(j['status'] in ('queued', 'running') for j in JOBS.values()) >= 10:
-            raise ValueError('대기열이 가득 찼습니다. 작업이 끝난 뒤 추가하세요.')
+            raise ValueError('The queue is full. Wait for a job to finish before adding another.')
         if values['action'] == 'install' and any(j['kind'] == values['kind'] and j['action'] == 'install'
                  and j['status'] in ('queued', 'running') for j in JOBS.values()):
-            raise ValueError('이 모델은 이미 설치 대기 중이거나 설치 중입니다.')
+            raise ValueError('This model is already queued for installation or being installed.')
         job = dict(id=uuid.uuid4().hex, created=time.time(), status='queued', progress=0,
-                   message='대기 중', files=[], **values)
+                   message='Queued', files=[], **values)
         JOBS[job['id']] = job
         update(job)
         PENDING.put(job['id'])
@@ -115,11 +115,11 @@ def cancel_job(job_id):
     with LOCK:
         job = JOBS.get(job_id)
         if not job:
-            raise ValueError('작업을 찾을 수 없습니다.')
+            raise ValueError('Job not found.')
         if job['status'] == 'queued':
-            update(job, status='cancelled', message='취소됨', finished=time.time())
+            update(job, status='cancelled', message='Cancelled', finished=time.time())
         elif job['status'] == 'running':
-            update(job, status='cancelling', message='취소 중 · GPU 메모리 반환 중')
+            update(job, status='cancelling', message='Cancelling · releasing GPU memory')
             if PROCESS:
                 if os.name == 'nt':
                     subprocess.run(['taskkill', '/PID', str(PROCESS.pid), '/T', '/F'],
@@ -137,7 +137,7 @@ def worker_loop():
         with LOCK:
             if job['status'] != 'queued':
                 continue
-            update(job, status='running', started=time.time(), message='실행 준비 중')
+            update(job, status='running', started=time.time(), message='Preparing to run')
             exe = sys.executable if job['action'] == 'install' else str(runtime(job['kind']))
             script = ROOT / ('install.py' if job['action'] == 'install' else 'worker.py')
             log_path = DATA / 'jobs' / (job_id + '.log')
@@ -160,14 +160,14 @@ def worker_loop():
                                           if k in ('progress', 'message', 'files', 'metrics')})
                 code = PROCESS.wait()
             if job['status'] == 'cancelling':
-                update(job, status='cancelled', message='취소됨 · GPU 메모리 반환 완료', finished=time.time())
+                update(job, status='cancelled', message='Cancelled · GPU memory released', finished=time.time())
             elif code:
-                if job.get('message') in ('실행 준비 중', '모델 로딩 중'):
-                    update(job, message='실행 실패 · 로그에서 원인을 확인하세요.')
+                if job.get('message') in ('Preparing to run', 'Loading model'):
+                    update(job, message='Job failed · check the log for details.')
                 update(job, status='failed', finished=time.time())
             else:
                 update(job, status='completed', progress=100, finished=time.time(),
-                       message='설치 완료' if job['action'] == 'install' else '생성 완료 · GPU 메모리 반환 완료')
+                       message='Installation complete' if job['action'] == 'install' else 'Generation complete · GPU memory released')
         except Exception as exc:
             if PROCESS and PROCESS.poll() is None:
                 PROCESS.kill()
@@ -232,15 +232,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.valid_host() or self.headers.get('X-Studio-Token') != TOKEN:
-            self.send(dict(error='이 창을 새로고침한 뒤 다시 시도하세요.'), 403)
+            self.send(dict(error='Refresh this page and try again.'), 403)
             return
         try:
             size = int(self.headers.get('Content-Length', '0'))
             if not (0 < size <= 28 * 1024 * 1024):
-                raise ValueError('요청 크기가 너무 큽니다. 이미지 파일은 20MB까지 가능합니다.')
+                raise ValueError('The request is too large. Images can be up to 20MB.')
             payload = json.loads(self.rfile.read(size))
             if not isinstance(payload, dict):
-                raise ValueError('올바르지 않은 요청입니다.')
+                raise ValueError('Invalid request.')
             if self.path == '/api/jobs':
                 self.send(create_job(payload), 201)
             elif self.path == '/api/cancel':
@@ -249,10 +249,10 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/api/upload':
                 ext = str(payload.get('name', '')).rsplit('.', 1)[-1].lower()
                 if ext not in ('png', 'jpg', 'jpeg', 'webp'):
-                    raise ValueError('PNG, JPEG, WebP 이미지만 사용할 수 있습니다.')
+                    raise ValueError('Only PNG, JPEG and WebP images are supported.')
                 raw = base64.b64decode(payload['data'], validate=True)
                 if not raw or len(raw) > 20 * 1024 * 1024:
-                    raise ValueError('이미지는 20MB까지 업로드할 수 있습니다.')
+                    raise ValueError('Images can be up to 20MB.')
                 name = uuid.uuid4().hex + '.' + ext
                 (DATA / 'uploads' / name).write_bytes(raw)
                 self.send(dict(upload=name, url='/uploads/' + name))
@@ -267,7 +267,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send(dict(ok=True))
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
             else:
-                self.send(dict(error='요청을 찾을 수 없습니다.'), 404)
+                self.send(dict(error='Request not found.'), 404)
         except (ValueError, KeyError, TypeError) as exc:
             self.send(dict(error=str(exc)), 400)
 
@@ -288,7 +288,7 @@ def main():
         try:
             job = json.loads(path.read_text(encoding='utf-8'))
             if job['status'] in ('running', 'queued', 'cancelling'):
-                update(job, status='interrupted', message='앱 종료로 중단됨 · 다시 실행할 수 있습니다.')
+                update(job, status='interrupted', message='Interrupted when the app closed · you can run it again.')
             JOBS[job['id']] = job
         except (ValueError, KeyError):
             pass

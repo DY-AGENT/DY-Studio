@@ -49,7 +49,7 @@ def probe(kind):
         from huggingface_hub import hf_hub_download
         hf_hub_download('facebook/dino-vitb16', filename='config.json', local_files_only=True)
         if not (DATA / 'models' / 'cutout' / 'u2net.onnx').is_file():
-            raise RuntimeError('3D 전처리에 필요한 배경 제거 가중치가 없습니다.')
+            raise RuntimeError('Background removal weights required for 3D preprocessing are missing.')
         required = ['config.yaml', 'model.ckpt']
     elif kind == 'music':
         from acestep.handler import AceStepHandler
@@ -58,18 +58,18 @@ def probe(kind):
     else:
         from rembg import new_session
         if not (model_dir / 'u2net.onnx').is_file():
-            raise RuntimeError('배경 제거 모델 파일이 없습니다.')
+            raise RuntimeError('The background removal model file is missing.')
         return
     weight_dir = model_dir / ('checkpoints' if kind == 'music' else 'weights')
     for name in required:
         if not (weight_dir / name).is_file():
-            raise RuntimeError('모델 파일이 없습니다: ' + name)
+            raise RuntimeError('Missing model file: ' + name)
 
 def input_image(job):
     from PIL import Image, ImageOps
     image = Image.open(safe_path(DATA / 'uploads', job['upload']))
     if image.width * image.height > 40_000_000:
-        raise ValueError('이미지 픽셀 수가 너무 큽니다. 가로·세로를 줄여서 업로드하세요.')
+        raise ValueError('The image has too many pixels. Reduce its width and height before uploading.')
     image = ImageOps.exif_transpose(image)
     image.thumbnail((2048, 2048))
     return image
@@ -78,18 +78,18 @@ def generate(job):
     commercial_model(job['kind'])
     kind = job['kind']
     if kind in ('mesh', 'cutout') and not (DATA / 'models' / 'cutout' / 'u2net.onnx').is_file():
-        raise RuntimeError('배경 제거 가중치가 없습니다. 모델을 다시 설치하세요.')
+        raise RuntimeError('Background removal weights are missing. Reinstall the model.')
     setup_source(kind)
     destination = DATA / 'results' / job['id']
     destination.mkdir(parents=True, exist_ok=True)
     weights = DATA / 'models' / kind / 'weights'
     seed = job['seed'] if job['seed'] >= 0 else random.randrange(2**32)
     started = time.perf_counter()
-    event('모델 로딩 중', 5)
+    event('Loading model', 5)
     if kind != 'cutout':
         import torch
         if not torch.cuda.is_available():
-            raise RuntimeError('NVIDIA CUDA GPU를 찾지 못했습니다. GPU 드라이버와 실행 환경을 확인하세요.')
+            raise RuntimeError('No NVIDIA CUDA GPU was found. Check the GPU driver and runtime environment.')
         torch.cuda.reset_peak_memory_stats()
     if kind == 'image':
         from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
@@ -100,20 +100,20 @@ def generate(job):
         pipe.enable_vae_slicing()
         pipe.enable_vae_tiling()
         def callback(_pipe, step, timestep, kwargs):
-            event(f'이미지 생성 중 · {step + 1}/24', 15 + round((step + 1) / 24 * 75))
+            event(f'Generating image · {step + 1}/24', 15 + round((step + 1) / 24 * 75))
             return kwargs
         result = pipe(prompt=job['prompt'], negative_prompt=job['negative'],
                      height=job['size'], width=job['size'], num_inference_steps=24,
                      generator=torch.Generator('cpu').manual_seed(seed),
                      callback_on_step_end=callback)
         if result.nsfw_content_detected and any(result.nsfw_content_detected):
-            raise RuntimeError('모델 안전 검사에서 이미지가 제한되었습니다. 설명을 바꿔 다시 시도하세요.')
+            raise RuntimeError('The model safety check blocked this image. Change the prompt and try again.')
         result.images[0].save(destination / 'image.png')
     elif kind == 'video':
         from diffusers import CogVideoXPipeline
         from diffusers.utils import export_to_video
         if not torch.cuda.is_bf16_supported():
-            raise RuntimeError('영상 생성은 BF16을 지원하는 NVIDIA GPU(RTX 30 시리즈 이상)가 필요합니다.')
+            raise RuntimeError('Video generation requires an NVIDIA GPU with BF16 support (RTX 30-series or newer).')
         pipe = CogVideoXPipeline.from_pretrained(str(weights), torch_dtype=torch.bfloat16,
                                                 local_files_only=True, use_safetensors=True)
         # Keep only the 2B denoiser resident during sampling. T5 and VAE use
@@ -125,25 +125,25 @@ def generate(job):
         def callback(_pipe, step, timestep, kwargs):
             latents = kwargs['latents']
             if not torch.isfinite(latents).all():
-                raise RuntimeError('영상 계산에서 비정상 값이 발생했습니다. 결과를 저장하지 않았습니다.')
+                raise RuntimeError('Video generation produced non-finite values. No output was saved.')
             if step == 29:
                 torch.save(latents.detach().cpu(), DATA / 'jobs' / (job['id'] + '-latents.pt'))
                 _pipe.transformer.to('cpu')
                 torch.cuda.empty_cache()
-                event('영상 프레임 복원 중', 87)
+                event('Decoding video frames', 87)
                 return kwargs
-            event(f'영상 생성 중 · {step + 1}/30 · 메모리 절약 모드는 오래 걸릴 수 있습니다.',
+            event(f'Generating video · {step + 1}/30 · Memory-saving mode can take a long time.',
                   15 + round((step + 1) / 30 * 70))
             return kwargs
-        event('설명 분석 및 영상 준비 중', 10)
+        event('Encoding prompt and preparing video', 10)
         result = pipe(prompt=job['prompt'], num_frames=49, height=480, width=720,
                       num_inference_steps=30, guidance_scale=6,
                       generator=torch.Generator('cpu').manual_seed(seed), callback_on_step_end=callback)
-        event('영상 파일 저장 중', 92)
+        event('Saving video file', 92)
         import numpy as np
         sample_frames = [np.asarray(result.frames[0][i]) for i in (0, 24, 48)]
         if all(frame.std() < 2.5 for frame in sample_frames):
-            raise RuntimeError('영상이 거의 빈 화면으로 생성됐습니다. 설명을 바꿔 다시 실행하세요.')
+            raise RuntimeError('The generated video is nearly blank. Change the prompt and try again.')
         export_to_video(result.frames[0], str(destination / 'video.mp4'), fps=8)
     elif kind == 'music':
         from acestep.handler import AceStepHandler
@@ -156,7 +156,7 @@ def generate(job):
             compile_model=False, offload_to_cpu=True, offload_dit_to_cpu=True, quantization=None)
         if not ok:
             raise RuntimeError(message)
-        event('음악 생성 중 · LLM 사용 안 함', 30)
+        event('Generating music · language generation disabled', 30)
         params = GenerationParams(caption=job['prompt'], lyrics='[Instrumental]' if job['instrumental'] else job['lyrics'],
              instrumental=job['instrumental'], duration=job['duration'], inference_steps=8, seed=seed,
              thinking=False, use_cot_metas=False, use_cot_caption=False, use_cot_language=False,
@@ -166,7 +166,7 @@ def generate(job):
         if not result.success:
             raise RuntimeError(result.error or result.status_message)
         if not list(destination.glob('*.wav')):
-            raise RuntimeError('음악 엔진이 WAV 파일을 반환하지 않았습니다.')
+            raise RuntimeError('The music engine did not return a WAV file.')
     elif kind == 'mesh':
         import numpy as np
         from PIL import Image
@@ -183,13 +183,13 @@ def generate(job):
         model = TSR.from_pretrained(str(weights), config_name='config.yaml', weight_name='model.ckpt')
         model.renderer.set_chunk_size(4096)
         model.to('cuda').eval()
-        event('물체 형상 추정 중', 30)
+        event('Estimating object shape', 30)
         with torch.inference_mode():
             codes = model([image], device='cuda')
-            event('메시 추출 중 · 색상과 표면을 저장합니다.', 65)
+            event('Extracting mesh · saving colors and surfaces.', 65)
             mesh = model.extract_mesh(codes, has_vertex_color=True, resolution=128)[0]
         if not len(mesh.vertices) or not len(mesh.faces):
-            raise RuntimeError('3D 표면을 찾지 못했습니다. 물체가 크게 나온 이미지를 사용하세요.')
+            raise RuntimeError('No 3D surface was found. Use an image with a larger, clearly visible object.')
         # TripoSR/OBJ use Z-up; glTF uses Y-up.
         import trimesh
         gltf_mesh = mesh.copy()
@@ -199,19 +199,19 @@ def generate(job):
         save_json(destination / 'mesh-info.json', dict(vertices=len(mesh.vertices), faces=len(mesh.faces)))
     else:
         from rembg import remove, new_session
-        event('피사체와 배경을 분리하는 중', 35)
+        event('Separating the subject from the background', 35)
         session = new_session('u2net', providers=['CPUExecutionProvider'])
         remove(input_image(job), session=session).save(destination / 'cutout.png')
     metrics = dict(seconds=round(time.perf_counter() - started, 2), seed=seed,
                    peak_vram_gb=round(torch.cuda.max_memory_allocated() / 1024**3, 3)
                        if kind != 'cutout' else 0,
-                   note='PyTorch 할당량입니다. 다른 프로그램과 CUDA 런타임 메모리는 포함하지 않습니다.')
+                   note='PyTorch allocations only; excludes other applications and CUDA runtime memory.')
     save_json(destination / 'generation.json', dict(job=job, metrics=metrics))
     write_rights(destination, job)
     files = [dict(name=p.name, url='/results/' + job['id'] + '/' + p.name)
              for p in destination.iterdir() if p.is_file() and (p.suffix in ('.png', '.wav', '.mp4', '.glb', '.obj')
                                                               or p.name in ('rights.json', 'commercial-use.txt'))]
-    event('파일 저장 완료', 98, files=files, metrics=metrics)
+    event('Files saved', 98, files=files, metrics=metrics)
 
 if __name__ == '__main__':
     os.environ.update(environment())
@@ -227,7 +227,7 @@ if __name__ == '__main__':
     except Exception as exc:
         msg = str(exc)
         if 'out of memory' in msg.lower():
-            msg = 'GPU 메모리가 부족합니다. GPU를 사용하는 다른 앱을 닫고 다시 실행하세요. ' + msg[:300]
-        event('실행 실패: ' + msg)
+            msg = 'Not enough GPU memory. Close other GPU applications and try again. ' + msg[:300]
+        event('Job failed: ' + msg)
         traceback.print_exc()
         sys.exit(1)
